@@ -24,8 +24,7 @@ dependencies = [
 ]
 
 [project.scripts]
-fraud-detect = "inference:main"
-server = "server.app:run_server"
+server = "server.app:main"
 
 [tool.setuptools.packages.find]
 where = ["."]

@@ -2,9 +2,9 @@ from openenv_core import OpenEnvServer
 from env import FraudDetectionEnv
 from models import Observation, Action, Reward
 
-def run_server():
-    """Entry point for openenv serve."""
-    env = FraudDetectionEnv(task_name="easy")  # default task
+def main():
+    """Entry point for openenv serve (required name: main)."""
+    env = FraudDetectionEnv(task_name="easy")
     server = OpenEnvServer(
         env=env,
         observation_model=Observation,
@@ -16,4 +16,4 @@ def run_server():
     server.run()
 
 if __name__ == "__main__":
-    run_server()
+    main()
