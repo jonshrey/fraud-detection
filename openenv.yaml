@@ -1,0 +1,34 @@
+name: research-integrity-officer
+version: 1.0.0
+description: >
+  Real-world environment where an AI agent acts as a research integrity officer
+  investigating potential scientific fraud. The agent requests raw data, runs
+  statistical tests, interviews authors, and issues verdicts. Three difficulty
+  levels with programmatic graders.
+authors:
+  - OpenEnv Contributor
+tags:
+  - scientific-fraud
+  - investigation
+  - statistical-reasoning
+  - real-world
+  - decision-making
+observation_space:
+  type: dict
+  properties:
+    paper_metadata: { type: dict }
+    published_stats: { type: dict }
+    available_raw_data: { type: list }
+    test_results: { type: dict }
+    author_responses: { type: list }
+    step_count: { type: integer }
+action_space:
+  type: dict
+  properties:
+    action_type: { type: string, enum: [request_raw_data, run_statistical_test, request_author_explanation, flag_paper, issue_verdict] }
+    dataset_id: { type: string, optional: true }
+    test_name: { type: string, optional: true }
+    severity: { type: integer, optional: true }
+    verdict: { type: string, optional: true }
+reward_range: [ -1.0, 2.0 ]
+episode_length: 15
