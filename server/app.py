@@ -1,13 +1,10 @@
 from openenv_core import OpenEnvServer
 from env import FraudDetectionEnv
 from models import Observation, Action, Reward
-import os
-
-# Create the environment instance
-env = FraudDetectionEnv(task_name="easy")  # default task, but can be overridden
 
 def run_server():
     """Entry point for openenv serve."""
+    env = FraudDetectionEnv(task_name="easy")  # default task
     server = OpenEnvServer(
         env=env,
         observation_model=Observation,
