@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fraud-detection-env"
+version = "1.0.0"
+description = "AI Research Integrity Officer - Scientific Fraud Detection Environment"
+authors = [{name = "Your Name", email = "your@email.com"}]
+license = {text = "MIT"}
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "openai>=1.0.0",
+    "pydantic>=2.0.0",
+    "numpy>=1.24.0",
+    "pandas>=2.0.0",
+    "scipy>=1.10.0",
+    "gradio>=3.50.0",
+    "python-dotenv>=1.0.0",
+    "fastapi>=0.100.0",
+    "uvicorn>=0.23.0",
+]
+
+[project.scripts]
+fraud-detect = "inference:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["env", "models", "tasks"]
