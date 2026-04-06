@@ -1,16 +1,12 @@
 import gradio as gr
 import os
 import json
-from openai import OpenAI
+from fastapi import FastAPI
+import uvicorn
 from env import FraudDetectionEnv
 from models import Action
 
-API_BASE_URL = os.environ.get("API_BASE_URL", "https://api.openai.com/v1").strip()
-MODEL_NAME = os.environ.get("MODEL_NAME", "gpt-3.5-turbo").strip()
-HF_TOKEN = os.environ.get("HF_TOKEN", "").strip()
-
-client = OpenAI(api_key=HF_TOKEN, base_url=API_BASE_URL)
-
+# ---------- Gradio UI function ----------
 def run_agent_step(task_name, action_json):
     try:
         env = FraudDetectionEnv(task_name)
@@ -31,7 +27,7 @@ def run_agent_step(task_name, action_json):
             output += f"Verdict: {env.final_verdict}\n"
         return output
     except Exception as e:
-        return f"Error: {str(e)}\n\nValid action JSON example:\n{{\"action_type\": \"request_raw_data\", \"dataset_id\": \"raw_data_1\"}}"
+        return f"Error: {str(e)}"
 
 with gr.Blocks(title="Research Integrity Officer - Fraud Detection") as demo:
     gr.Markdown("# 🔬 AI Research Integrity Officer\nInvestigate scientific papers for potential data fabrication.")
@@ -50,5 +46,17 @@ with gr.Blocks(title="Research Integrity Officer - Fraud Detection") as demo:
     - `issue_verdict`: `{"action_type": "issue_verdict", "verdict": "retract"}`
     """)
 
+# ---------- Create FastAPI app and mount Gradio ----------
+app = FastAPI()
+
+@app.api_route("/reset", methods=["GET", "POST"])
+def reset(task: str = "easy"):
+    env = FraudDetectionEnv(task)
+    obs = env.reset()
+    return {"status": "ok", "task": task, "step": obs.step_count}
+
+# Mount the Gradio app at the root path "/"
+app = gr.mount_gradio_app(app, demo, path="/")
+
 if __name__ == "__main__":
-    demo.launch(server_name="0.0.0.0", server_port=7860)
+    uvicorn.run(app, host="0.0.0.0", port=7860)
