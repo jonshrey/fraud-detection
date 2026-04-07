@@ -122,6 +122,7 @@ class Grader:
     @staticmethod
     def grade(paper: Paper, agent_log: Dict) -> float:
         score = 0.0
+        # 1. Verdict correctness (max 0.5)
         expected_verdict = "retract" if paper.ground_truth_fabrication["severity"] >= 3 else "require_revision"
         if agent_log["final_verdict"] == expected_verdict:
             score += 0.5
@@ -129,7 +130,8 @@ class Grader:
             score += 0.0
         else:
             score += 0.2
-
+        
+        # 2. Flagging accuracy (max 0.3)
         gt_severity = paper.ground_truth_fabrication["severity"]
         flagged = agent_log.get("flags", [])
         if flagged:
@@ -139,7 +141,8 @@ class Grader:
         else:
             flag_score = 0.0
         score += flag_score
-
+        
+        # 3. Efficiency (max 0.2)
         optimal_requests = 2 if "both" in paper.ground_truth_fabrication["location"] else 1
         optimal_tests = {"easy": 1, "medium": 2, "hard": 3}[paper.difficulty]
         requested = len(agent_log["datasets_requested"])
@@ -151,5 +154,8 @@ class Grader:
             efficiency -= 0.1 * (tests_run - optimal_tests)
         efficiency = max(0, efficiency)
         score += 0.2 * efficiency
-
-        return round(min(score, 1.0), 2)
+        
+        # Ensure score is strictly between 0 and 1
+        # Clip to [0.001, 0.999] to satisfy hackathon requirement
+        score = min(max(score, 0.001), 0.999)
+        return round(score, 3)
