@@ -112,22 +112,58 @@ HARD_PAPER = Paper(
     difficulty="hard"
 )
 
-# Papers dict for environment (mapping task name -> Paper)
 PAPERS = {
     "easy": EASY_PAPER,
     "medium": MEDIUM_PAPER,
     "hard": HARD_PAPER,
 }
 
+
 class Grader:
     @staticmethod
     def grade(paper: Paper, agent_log: Dict) -> float:
-        # For hackathon validation: always return a safe score strictly between 0 and 1
-        # Use 0.5 to guarantee it's in range.
-        # Once validation passes, you can replace this with the real grading logic.
-        return 0.5
+        """
+        Score the agent's fraud detection attempt.
+        Returns a float strictly in (0, 1).
+        """
+        try:
+            gt = paper.ground_truth_fabrication
+            gt_type = gt.get("type", "")
+            gt_location = gt.get("location", "")
+            severity = gt.get("severity", 3)
 
-# Required by OpenEnv validator: TASKS must be a dict with 'task' and 'grader'
+            detected_type = agent_log.get("fabrication_type", "")
+            detected_location = agent_log.get("location", "")
+            confidence = float(agent_log.get("confidence", 0.5))
+
+            # Clamp confidence to (0, 1) open interval
+            confidence = max(0.01, min(0.99, confidence))
+
+            score = 0.1  # baseline: always strictly > 0
+
+            # Reward correct type detection
+            if detected_type and detected_type.lower() == gt_type.lower():
+                score += 0.4
+
+            # Reward correct location detection
+            if detected_location and gt_location.lower() in detected_location.lower():
+                score += 0.3
+
+            # Blend in agent's own confidence as a small factor
+            score += 0.1 * confidence
+
+            # Normalize by severity (harder cases worth more, but keep in range)
+            score = score * (0.8 + 0.04 * severity)
+
+            # Strictly clamp to (0, 1) open interval — never touch 0.0 or 1.0
+            score = max(0.01, min(0.99, score))
+            return float(score)
+
+        except Exception:
+            # Safe fallback that is strictly within (0, 1)
+            return 0.5
+
+
 TASKS = {
     name: {"task": paper, "grader": Grader.grade}
     for name, paper in PAPERS.items()
