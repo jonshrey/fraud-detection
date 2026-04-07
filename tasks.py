@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Dict, List, Any
+from typing import Optional, Dict, List, Any
 import numpy as np
 
 @dataclass
@@ -70,7 +70,7 @@ MEDIUM_PAPER = Paper(
     difficulty="medium"
 )
 
-# ----- HARD (multi-paper ring) -----
+# ----- HARD -----
 HARD_DATASET_A = RawDataset(
     id="exp_A",
     description="Experiment A: catalyst efficiency measurements",
@@ -122,6 +122,7 @@ class Grader:
     @staticmethod
     def grade(paper: Paper, agent_log: Dict) -> float:
         score = 0.0
+        
         # 1. Verdict correctness (max 0.5)
         expected_verdict = "retract" if paper.ground_truth_fabrication["severity"] >= 3 else "require_revision"
         if agent_log["final_verdict"] == expected_verdict:
@@ -155,7 +156,9 @@ class Grader:
         efficiency = max(0, efficiency)
         score += 0.2 * efficiency
         
-        # Ensure score is strictly between 0 and 1
-        # Clip to [0.001, 0.999] to satisfy hackathon requirement
-        score = min(max(score, 0.001), 0.999)
+        # ⚠️ Hackathon requirement: score must be strictly between 0 and 1.
+        # Force the score into (0.001, 0.999) to avoid 0.0 or 1.0.
+        score = max(0.001, min(0.999, score))
+        
+        # Round to 3 decimal places to keep it clean
         return round(score, 3)
