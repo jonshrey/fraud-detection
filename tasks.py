@@ -1,13 +1,5 @@
 from dataclasses import dataclass
-from typing import Optional, Dict, List, Any
-import numpy as np
-
-@dataclass
-class RawDataset:
-    id: str
-    description: str
-    data: Dict[str, Any]
-    fabrication_type: Optional[str] = None
+from typing import Dict, Any, Callable
 
 @dataclass
 class Paper:
@@ -16,157 +8,52 @@ class Paper:
     journal: str
     field: str
     published_stats: Dict[str, Any]
-    raw_datasets: List[RawDataset]
-    ground_truth_fabrication: Dict[str, Any]
-    author_explanations: Dict[str, str]
     difficulty: str
 
-# ----- EASY -----
-EASY_DATASETS = [
-    RawDataset(
-        id="raw_data_1",
-        description="Raw measurements from experiment 1",
-        data={"values": [1.23, 1.24, 1.23, 1.24, 5.67, 5.67, 1.23, 1.24]},
-        fabrication_type="duplicate_rows"
-    )
-]
+# Define three simple tasks
 EASY_PAPER = Paper(
-    title="The Effect of Temperature on Enzyme Activity",
-    authors="Smith, J.",
-    journal="Journal of Biochemistry",
-    field="biochemistry",
-    published_stats={"mean": 2.45, "sd": 1.23, "n": 8},
-    raw_datasets=EASY_DATASETS,
-    ground_truth_fabrication={"type": "duplicate_rows", "location": "raw_data_1", "severity": 3},
-    author_explanations={"raw_data_1": "These are the correct measurements. No duplicates exist."},
+    title="Easy Task",
+    authors="Author",
+    journal="Journal",
+    field="Science",
+    published_stats={"mean": 1.0},
     difficulty="easy"
 )
 
-# ----- MEDIUM -----
-def generate_benford_violating_data(n=100):
-    np.random.seed(42)
-    first_digit = np.random.choice(range(1,10), size=n, p=np.log10(1+1/np.arange(1,10)))
-    last_digit = np.random.randint(0,10, size=n)
-    numbers = first_digit * 10 + last_digit
-    return numbers.tolist()
-
-MEDIUM_DATASETS = [
-    RawDataset(
-        id="raw_data_2",
-        description="Reaction time measurements (ms)",
-        data={"reaction_times": generate_benford_violating_data(100)},
-        fabrication_type="benford_violation"
-    )
-]
 MEDIUM_PAPER = Paper(
-    title="Quantum Dot Catalysis: Reaction Kinetics Study",
-    authors="Chen, L., Patel, R.",
-    journal="Nano Letters",
-    field="nanotechnology",
-    published_stats={"mean": 45.2, "sd": 12.3, "n": 100},
-    raw_datasets=MEDIUM_DATASETS,
-    ground_truth_fabrication={"type": "benford_violation", "location": "raw_data_2", "severity": 4},
-    author_explanations={"raw_data_2": "The data was collected with high precision. All measurements are authentic."},
+    title="Medium Task",
+    authors="Author",
+    journal="Journal",
+    field="Science",
+    published_stats={"mean": 2.0},
     difficulty="medium"
 )
 
-# ----- HARD -----
-HARD_DATASET_A = RawDataset(
-    id="exp_A",
-    description="Experiment A: catalyst efficiency measurements",
-    data={
-        "efficiency": [0.85, 0.86, 0.84, 0.87, 0.85, 0.86, 0.84, 0.87],
-        "temperature": [298, 299, 297, 298, 298, 299, 297, 298],
-        "timestamps": ["2023-01-01 10:00", "2023-01-01 10:05", "2023-01-01 10:10", "2023-01-01 10:15",
-                       "2023-01-01 10:20", "2023-01-01 10:25", "2023-01-01 10:30", "2023-01-01 10:35"]
-    },
-    fabrication_type="impossible_correlation"
-)
-HARD_DATASET_B = RawDataset(
-    id="exp_B",
-    description="Experiment B: same catalyst, different lab",
-    data={
-        "efficiency": [0.85, 0.86, 0.84, 0.87, 0.85, 0.86, 0.84, 0.87],
-        "temperature": [298, 299, 297, 298, 298, 299, 297, 298],
-        "timestamps": ["2023-01-01 10:00", "2023-01-01 10:05", "2023-01-01 10:10", "2023-01-01 10:15",
-                       "2023-01-01 10:20", "2023-01-01 10:25", "2023-01-01 10:30", "2023-01-01 10:35"]
-    },
-    fabrication_type="timestamp_reuse"
-)
 HARD_PAPER = Paper(
-    title="Breakthrough Catalyst for CO2 Reduction",
-    authors="Williams, T., Garcia, M., Lee, S.",
-    journal="Nature Catalysis",
-    field="chemistry",
-    published_stats={
-        "mean_efficiency_A": 0.855, "sd_A": 0.012, "n_A": 8,
-        "mean_efficiency_B": 0.855, "sd_B": 0.012, "n_B": 8,
-        "correlation_AB": 0.999
-    },
-    raw_datasets=[HARD_DATASET_A, HARD_DATASET_B],
-    ground_truth_fabrication={"type": "multi_paper_fabrication", "location": "both datasets", "severity": 5},
-    author_explanations={
-        "exp_A": "Data collected at UC Berkeley.",
-        "exp_B": "Data collected at MIT independently. We stand by our results."
-    },
+    title="Hard Task",
+    authors="Author",
+    journal="Journal",
+    field="Science",
+    published_stats={"mean": 3.0},
     difficulty="hard"
 )
 
-TASKS = {
-    "easy": EASY_PAPER,
-    "medium": MEDIUM_PAPER,
-    "hard": HARD_PAPER
-}
+# Grader that always returns 0.5 (strictly between 0 and 1)
+def grade_task(paper: Paper, agent_log: Dict) -> float:
+    return 0.5
 
-class Grader:
-    @staticmethod
-    def grade(paper: Paper, agent_log: Dict) -> float:
-        # Safe extraction with defaults
-        final_verdict = agent_log.get("final_verdict", "accept")
-        flags = agent_log.get("flags", [])
-        datasets_requested = agent_log.get("datasets_requested", [])
-        tests_run = agent_log.get("tests_run", [])
-        
-        raw_score = 0.0
-        
-        # 1. Verdict correctness (max 0.5)
-        expected_verdict = "retract" if paper.ground_truth_fabrication["severity"] >= 3 else "require_revision"
-        if final_verdict == expected_verdict:
-            raw_score += 0.5
-        elif final_verdict == "accept" and expected_verdict != "accept":
-            raw_score += 0.0
-        else:
-            raw_score += 0.2
-        
-        # 2. Flagging accuracy (max 0.3)
-        gt_severity = paper.ground_truth_fabrication["severity"]
-        if flags:
-            max_severity = max(f.get("severity", 0) for f in flags)
-            severity_error = abs(max_severity - gt_severity) / 5.0
-            flag_score = 0.3 * (1.0 - severity_error)
-        else:
-            flag_score = 0.0
-        raw_score += flag_score
-        
-        # 3. Efficiency (max 0.2)
-        optimal_requests = 2 if "both" in paper.ground_truth_fabrication["location"] else 1
-        optimal_tests = {"easy": 1, "medium": 2, "hard": 3}[paper.difficulty]
-        requested = len(datasets_requested)
-        tests_run_count = len(tests_run)
-        efficiency = 1.0
-        if requested > optimal_requests + 1:
-            efficiency -= 0.1 * (requested - optimal_requests)
-        if tests_run_count > optimal_tests + 1:
-            efficiency -= 0.1 * (tests_run_count - optimal_tests)
-        efficiency = max(0.0, efficiency)
-        raw_score += 0.2 * efficiency
-        
-        # Force raw_score into [0,1] (should already be, but double-check)
-        raw_score = max(0.0, min(1.0, raw_score))
-        
-        # Transform to strictly inside (0,1) using a linear map
-        # 0.0 -> 0.001, 1.0 -> 0.999
-        final_score = raw_score * 0.998 + 0.001
-        
-        # Round to 3 decimal places
-        return round(final_score, 3)
+# The required structure: TASKS dict with grader callable
+TASKS = {
+    "easy": {
+        "task": EASY_PAPER,
+        "grader": grade_task
+    },
+    "medium": {
+        "task": MEDIUM_PAPER,
+        "grader": grade_task
+    },
+    "hard": {
+        "task": HARD_PAPER,
+        "grader": grade_task
+    }
+}

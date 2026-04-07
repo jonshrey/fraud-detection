@@ -3,7 +3,6 @@ from env import FraudDetectionEnv
 from models import Observation, Action, Reward
 
 def main():
-    """Entry point for openenv serve (required name: main)."""
     env = FraudDetectionEnv(task_name="easy")
     server = OpenEnvServer(
         env=env,
