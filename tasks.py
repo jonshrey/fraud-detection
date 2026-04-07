@@ -127,16 +127,16 @@ class Grader:
         datasets_requested = agent_log.get("datasets_requested", [])
         tests_run = agent_log.get("tests_run", [])
         
-        score = 0.0
+        raw_score = 0.0
         
         # 1. Verdict correctness (max 0.5)
         expected_verdict = "retract" if paper.ground_truth_fabrication["severity"] >= 3 else "require_revision"
         if final_verdict == expected_verdict:
-            score += 0.5
+            raw_score += 0.5
         elif final_verdict == "accept" and expected_verdict != "accept":
-            score += 0.0
+            raw_score += 0.0
         else:
-            score += 0.2
+            raw_score += 0.2
         
         # 2. Flagging accuracy (max 0.3)
         gt_severity = paper.ground_truth_fabrication["severity"]
@@ -146,7 +146,7 @@ class Grader:
             flag_score = 0.3 * (1.0 - severity_error)
         else:
             flag_score = 0.0
-        score += flag_score
+        raw_score += flag_score
         
         # 3. Efficiency (max 0.2)
         optimal_requests = 2 if "both" in paper.ground_truth_fabrication["location"] else 1
@@ -159,14 +159,14 @@ class Grader:
         if tests_run_count > optimal_tests + 1:
             efficiency -= 0.1 * (tests_run_count - optimal_tests)
         efficiency = max(0.0, efficiency)
-        score += 0.2 * efficiency
+        raw_score += 0.2 * efficiency
         
-        # Ensure score is strictly between 0 and 1 (hackathon requirement)
-        # Use a small epsilon to avoid 0.0 or 1.0
-        if score <= 0.0:
-            score = 0.001
-        elif score >= 1.0:
-            score = 0.999
+        # Force raw_score into [0,1] (should already be, but double-check)
+        raw_score = max(0.0, min(1.0, raw_score))
+        
+        # Transform to strictly inside (0,1) using a linear map
+        # 0.0 -> 0.001, 1.0 -> 0.999
+        final_score = raw_score * 0.998 + 0.001
         
         # Round to 3 decimal places
-        return round(score, 3)
+        return round(final_score, 3)
