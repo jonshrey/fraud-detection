@@ -1,6 +1,6 @@
 from typing import Dict, Any, Optional, List
 from models import Observation, Action, Reward
-from tasks import TASKS, Paper, Grader, RawDataset
+from tasks import PAPERS as TASKS, Paper, Grader, RawDataset
 import copy
 import numpy as np
 from scipy import stats
