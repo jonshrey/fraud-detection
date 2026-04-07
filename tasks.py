@@ -119,52 +119,63 @@ PAPERS = {
 }
 
 
+def _grade(paper, agent_log: Dict) -> float:
+    """
+    Grade a fraud-detection attempt. Always returns a float strictly in (0, 1).
+    Accepts paper as a Paper dataclass OR as the TASKS wrapper dict.
+    """
+    try:
+        # Support being called with the raw Paper OR with the {"task": paper, ...} wrapper
+        if isinstance(paper, dict):
+            paper = paper.get("task", paper)
+
+        gt = paper.ground_truth_fabrication
+        gt_type = gt.get("type", "")
+        gt_location = gt.get("location", "")
+        severity = int(gt.get("severity", 3))
+
+        # agent_log may be any dict — extract fields safely
+        detected_type = str(agent_log.get("fabrication_type", ""))
+        detected_location = str(agent_log.get("location", ""))
+        raw_confidence = agent_log.get("confidence", 0.5)
+        confidence = max(0.01, min(0.99, float(raw_confidence)))
+
+        score = 0.1  # baseline > 0
+
+        if detected_type and detected_type.lower() == gt_type.lower():
+            score += 0.4
+
+        if detected_location and gt_location.lower() in detected_location.lower():
+            score += 0.3
+
+        score += 0.1 * confidence
+
+        # severity in [1,5] → multiplier in [0.84, 1.0]
+        multiplier = 0.8 + 0.04 * min(severity, 5)
+        score = score * multiplier
+
+        # Hard clamp — never 0.0 or 1.0
+        return max(0.01, min(0.99, float(score)))
+
+    except Exception:
+        return 0.5
+
+
 class Grader:
-    @staticmethod
-    def grade(paper: Paper, agent_log: Dict) -> float:
-        """
-        Score the agent's fraud detection attempt.
-        Returns a float strictly in (0, 1).
-        """
-        try:
-            gt = paper.ground_truth_fabrication
-            gt_type = gt.get("type", "")
-            gt_location = gt.get("location", "")
-            severity = gt.get("severity", 3)
+    """Callable grader class. grade() is also exported as a module-level function."""
 
-            detected_type = agent_log.get("fabrication_type", "")
-            detected_location = agent_log.get("location", "")
-            confidence = float(agent_log.get("confidence", 0.5))
+    def grade(self, paper, agent_log: Dict) -> float:
+        return _grade(paper, agent_log)
 
-            # Clamp confidence to (0, 1) open interval
-            confidence = max(0.01, min(0.99, confidence))
-
-            score = 0.1  # baseline: always strictly > 0
-
-            # Reward correct type detection
-            if detected_type and detected_type.lower() == gt_type.lower():
-                score += 0.4
-
-            # Reward correct location detection
-            if detected_location and gt_location.lower() in detected_location.lower():
-                score += 0.3
-
-            # Blend in agent's own confidence as a small factor
-            score += 0.1 * confidence
-
-            # Normalize by severity (harder cases worth more, but keep in range)
-            score = score * (0.8 + 0.04 * severity)
-
-            # Strictly clamp to (0, 1) open interval — never touch 0.0 or 1.0
-            score = max(0.01, min(0.99, score))
-            return float(score)
-
-        except Exception:
-            # Safe fallback that is strictly within (0, 1)
-            return 0.5
+    # Make the instance itself callable too, for validators that do grader(paper, log)
+    def __call__(self, paper, agent_log: Dict) -> float:
+        return _grade(paper, agent_log)
 
 
 TASKS = {
-    name: {"task": paper, "grader": Grader.grade}
+    name: {
+        "task": paper,
+        "grader": _grade,   # plain callable — no unbound method issues
+    }
     for name, paper in PAPERS.items()
 }
