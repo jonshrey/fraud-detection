@@ -42,7 +42,7 @@ EASY_PAPER = Paper(
     difficulty="easy"
 )
 
-# ----- MEDIUM (Benford violation) -----
+# ----- MEDIUM -----
 def generate_benford_violating_data(n=100):
     np.random.seed(42)
     first_digit = np.random.choice(range(1,10), size=n, p=np.log10(1+1/np.arange(1,10)))
@@ -121,24 +121,29 @@ TASKS = {
 class Grader:
     @staticmethod
     def grade(paper: Paper, agent_log: Dict) -> float:
+        # Safe extraction with defaults
+        final_verdict = agent_log.get("final_verdict", "accept")
+        flags = agent_log.get("flags", [])
+        datasets_requested = agent_log.get("datasets_requested", [])
+        tests_run = agent_log.get("tests_run", [])
+        
         score = 0.0
         
         # 1. Verdict correctness (max 0.5)
         expected_verdict = "retract" if paper.ground_truth_fabrication["severity"] >= 3 else "require_revision"
-        if agent_log["final_verdict"] == expected_verdict:
+        if final_verdict == expected_verdict:
             score += 0.5
-        elif agent_log["final_verdict"] == "accept" and expected_verdict != "accept":
+        elif final_verdict == "accept" and expected_verdict != "accept":
             score += 0.0
         else:
             score += 0.2
         
         # 2. Flagging accuracy (max 0.3)
         gt_severity = paper.ground_truth_fabrication["severity"]
-        flagged = agent_log.get("flags", [])
-        if flagged:
-            max_severity_flagged = max(f["severity"] for f in flagged)
-            severity_error = abs(max_severity_flagged - gt_severity) / 5
-            flag_score = 0.3 * (1 - severity_error)
+        if flags:
+            max_severity = max(f.get("severity", 0) for f in flags)
+            severity_error = abs(max_severity - gt_severity) / 5.0
+            flag_score = 0.3 * (1.0 - severity_error)
         else:
             flag_score = 0.0
         score += flag_score
@@ -146,19 +151,22 @@ class Grader:
         # 3. Efficiency (max 0.2)
         optimal_requests = 2 if "both" in paper.ground_truth_fabrication["location"] else 1
         optimal_tests = {"easy": 1, "medium": 2, "hard": 3}[paper.difficulty]
-        requested = len(agent_log["datasets_requested"])
-        tests_run = len(agent_log["tests_run"])
+        requested = len(datasets_requested)
+        tests_run_count = len(tests_run)
         efficiency = 1.0
         if requested > optimal_requests + 1:
             efficiency -= 0.1 * (requested - optimal_requests)
-        if tests_run > optimal_tests + 1:
-            efficiency -= 0.1 * (tests_run - optimal_tests)
-        efficiency = max(0, efficiency)
+        if tests_run_count > optimal_tests + 1:
+            efficiency -= 0.1 * (tests_run_count - optimal_tests)
+        efficiency = max(0.0, efficiency)
         score += 0.2 * efficiency
         
-        # ⚠️ Hackathon requirement: score must be strictly between 0 and 1.
-        # Force the score into (0.001, 0.999) to avoid 0.0 or 1.0.
-        score = max(0.001, min(0.999, score))
+        # Ensure score is strictly between 0 and 1 (hackathon requirement)
+        # Use a small epsilon to avoid 0.0 or 1.0
+        if score <= 0.0:
+            score = 0.001
+        elif score >= 1.0:
+            score = 0.999
         
-        # Round to 3 decimal places to keep it clean
+        # Round to 3 decimal places
         return round(score, 3)
