@@ -1,6 +1,6 @@
 from typing import Dict, Any, Optional, List
 from models import Observation, Action, Reward
-from tasks import PAPERS as TASKS, Paper, Grader, RawDataset
+from tasks import PAPERS as TASKS, Paper, RawDataset
 import copy
 import numpy as np
 from scipy import stats
@@ -10,7 +10,9 @@ class FraudDetectionEnv:
         if task_name not in TASKS:
             raise ValueError(f"Task must be one of {list(TASKS.keys())}")
         self.task_name = task_name
-        self.paper = TASKS[task_name]
+        # Get the paper from the TASKS dict
+        task_dict = TASKS[task_name]
+        self.paper = task_dict["task"]
         self.reset()
     
     def reset(self) -> Observation:
@@ -128,14 +130,47 @@ class FraudDetectionEnv:
                 reward_reasons.append("Timeout: default verdict 'accept'")
         
         if self.done:
+            # Build agent_log with fabrication detection info
+            # Extract fabrication info from test results and flags
+            detected_fabrication_type = ""
+            detected_location = ""
+            
+            # Infer fabrication type from test results
+            for test_key, result in self.test_results.items():
+                if "duplicate" in result.lower() or "high outlier" in result.lower():
+                    detected_fabrication_type = "duplicate_rows"
+                    detected_location = test_key.split('_')[0]
+                    break
+                elif "benford" in result.lower() and "deviation" in result.lower():
+                    detected_fabrication_type = "benford_violation"
+                    detected_location = test_key.split('_')[0]
+                    break
+                elif "impossible correlation" in result.lower():
+                    detected_fabrication_type = "impossible_correlation"
+                    detected_location = test_key.split('_')[0]
+                    break
+                elif "duplicate timestamps" in result.lower():
+                    detected_fabrication_type = "timestamp_reuse"
+                    detected_location = test_key.split('_')[0]
+                    break
+            
             agent_log = {
                 "datasets_requested": self.datasets_requested,
                 "tests_run": list(self.test_results.keys()),
                 "flags": self.flags,
                 "final_verdict": self.final_verdict,
+                "fabrication_type": detected_fabrication_type,
+                "location": detected_location,
                 "confidence": 0.8
             }
-            final_score = Grader.grade(self.paper, agent_log)
+            
+            # Get the grader function from TASKS dict
+            from tasks import TASKS
+            task_dict = TASKS[self.task_name]
+            grader_fn = task_dict["grader"]
+            
+            # Call grader with the task's paper object
+            final_score = grader_fn(task_dict["task"], agent_log)
             final_reward = final_score * 2.0
             total_reward = self.reward_total + reward_val + final_reward
             reward_val = total_reward
@@ -155,6 +190,8 @@ class FraudDetectionEnv:
             if not vals:
                 return "Cannot apply Benford test to this data"
             first_digits = [int(str(abs(v)).strip('.')[0]) for v in vals if v > 0]
+            if not first_digits:
+                return "No valid data for Benford test"
             expected = [np.log10(1+1/d) for d in range(1,10)]
             observed = [first_digits.count(d)/len(first_digits) for d in range(1,10)]
             chi2, p = stats.chisquare(observed, expected)
@@ -166,6 +203,8 @@ class FraudDetectionEnv:
         elif test_name == "digit_frequency":
             vals = data.get("values") or data.get("reaction_times", [])
             last_digits = [int(str(v).split('.')[-1][0]) for v in vals if str(v).find('.')>0]
+            if not last_digits:
+                return "No decimal data for digit frequency test"
             observed = [last_digits.count(d) for d in range(10)]
             expected = [len(last_digits)/10]*10
             chi2, p = stats.chisquare(observed, expected)
