@@ -1,13 +1,16 @@
-FROM python:3.11-slim@sha256:1d9786cbecd37244b212ad969b34b49065b15c0966a2a044a4d04bc071f8924b
+FROM python:3.9-slim
 
 WORKDIR /app
 
+# Copy requirements first for better caching
 COPY requirements.txt .
-
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Copy all application files
 COPY . .
 
-EXPOSE 7860 8000
+# Expose port for Gradio/HF Spaces
+EXPOSE 7860
 
+# Run the space app
 CMD ["python", "space_app.py"]
